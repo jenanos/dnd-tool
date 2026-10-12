@@ -1,7 +1,7 @@
 // Pure combat-state transitions. Every function takes the current state and returns the next one;
 // illegal actions return the state unchanged (the UI disables them, this is the safety net).
 
-import type { AttackOptions, AttackRecord, CharacterConfig, GwfMode, ManeuverId, Situation, WeaponConfig } from './types';
+import type { AttackOptions, AttackRecord, AttackSource, CharacterConfig, GwfMode, ManeuverId, Situation, WeaponConfig } from './types';
 import { rollD20, type Rng } from './dice';
 import {
   attackModifiers,
@@ -17,13 +17,28 @@ import {
   sumModifiers,
 } from './character';
 
+export interface TurnState {
+  /** Attacks made with the Attack action this turn. */
+  actionAttacks: number;
+  /** Action Surge activated this turn: one more Attack action. */
+  actionSurged: boolean;
+  bonusActionUsed: boolean;
+  /** Reactions refresh at the start of your turn, so "New turn" resets this too. */
+  reactionUsed: boolean;
+  cleaveUsed: boolean;
+  /** Ignore all per-turn limits until the next turn. */
+  override: boolean;
+}
+
 export interface CombatState {
   /** Superiority dice remaining. */
   superiority: number;
+  /** Action Surge uses remaining. */
+  actionSurge: number;
   /** Newest first. The current attack lives here too. */
   history: AttackRecord[];
   currentId: string | null;
-  turn: { actionAttacks: number; cleaveUsed: boolean };
+  turn: TurnState;
 }
 
 export interface Env {
@@ -38,8 +53,17 @@ export const HISTORY_LIMIT = 40;
 export type Phase = 'ready' | 'rolled' | 'hit' | 'damage' | 'miss';
 
 export function initialCombatState(cfg: CharacterConfig): CombatState {
-  return { superiority: cfg.superiority.count, history: [], currentId: null, turn: { actionAttacks: 0, cleaveUsed: false } };
+  return { superiority: cfg.superiority.count, actionSurge: cfg.actionSurge.uses, history: [], currentId: null, turn: freshTurn() };
 }
+
+export const freshTurn = (): TurnState => ({
+  actionAttacks: 0,
+  actionSurged: false,
+  bonusActionUsed: false,
+  reactionUsed: false,
+  cleaveUsed: false,
+  override: false,
+});
 
 export const currentAttack = (s: CombatState) =>
   s.currentId ? s.history.find((a) => a.id === s.currentId) : undefined;
@@ -60,15 +84,45 @@ function replaceCurrent(s: CombatState, next: AttackRecord): CombatState {
 let idCounter = 0;
 const defaultId = () => `${Date.now().toString(36)}-${(idCounter++).toString(36)}`;
 
+// --- Turn economy -----------------------------------------------------------
+
+export const attackActionLimit = (s: CombatState, cfg: CharacterConfig) =>
+  cfg.attacksPerAction * (s.turn.actionSurged ? 2 : 1);
+
+/** Whether the turn still has the action, bonus action or reaction this attack needs. */
+export function hasActionFor(s: CombatState, cfg: CharacterConfig, source: AttackSource): boolean {
+  if (s.turn.override) return true;
+  switch (source) {
+    case 'action':
+      return s.turn.actionAttacks < attackActionLimit(s, cfg);
+    case 'bonus':
+      return !s.turn.bonusActionUsed;
+    case 'reaction':
+    case 'riposte':
+      return !s.turn.reactionUsed;
+    case 'cleave':
+      return true; // part of the triggering attack; limited by canCleave
+  }
+}
+
+export const canActionSurge = (s: CombatState) => s.actionSurge > 0 && !s.turn.actionSurged;
+
+export function activateActionSurge(s: CombatState): CombatState {
+  if (!canActionSurge(s)) return s;
+  return { ...s, actionSurge: s.actionSurge - 1, turn: { ...s.turn, actionSurged: true } };
+}
+
+export const setOverride = (s: CombatState, override: boolean): CombatState => ({ ...s, turn: { ...s.turn, override } });
+
 // --- Starting attacks -------------------------------------------------------
 
 export function canRiposte(s: CombatState, cfg: CharacterConfig, w: WeaponConfig, situation: Situation) {
-  return hasManeuver(cfg, 'riposte') && s.superiority > 0 && isMeleeAttack(w, situation);
+  return hasManeuver(cfg, 'riposte') && s.superiority > 0 && isMeleeAttack(w, situation) && hasActionFor(s, cfg, 'riposte');
 }
 
 export function canCleave(s: CombatState) {
   const a = currentAttack(s);
-  return !!a && phaseOf(a) === 'damage' && a.mastery === 'cleave' && a.melee && !s.turn.cleaveUsed;
+  return !!a && phaseOf(a) === 'damage' && a.mastery === 'cleave' && a.melee && (!s.turn.cleaveUsed || s.turn.override);
 }
 
 export function startAttack(s: CombatState, env: Env, weaponId: string, options: AttackOptions): CombatState {
@@ -77,6 +131,7 @@ export function startAttack(s: CombatState, env: Env, weaponId: string, options:
   const { source, situation } = options;
   const parent = currentAttack(s);
 
+  if (!hasActionFor(s, cfg, source)) return s;
   if (source === 'riposte' && !canRiposte(s, cfg, w, situation)) return s;
   if (source === 'cleave' && (!canCleave(s) || parent?.weaponId !== w.id)) return s;
 
@@ -115,11 +170,15 @@ export function startAttack(s: CombatState, env: Env, weaponId: string, options:
   else if (natural === 1) record = withMiss(record, cfg);
 
   return {
+    ...s,
     superiority: s.superiority - record.superiorityDiceSpent,
     history: [record, ...s.history].slice(0, HISTORY_LIMIT),
     currentId: record.id,
     turn: {
+      ...s.turn,
       actionAttacks: source === 'action' ? s.turn.actionAttacks + 1 : s.turn.actionAttacks,
+      bonusActionUsed: s.turn.bonusActionUsed || source === 'bonus',
+      reactionUsed: s.turn.reactionUsed || source === 'reaction' || source === 'riposte',
       cleaveUsed: s.turn.cleaveUsed || source === 'cleave',
     },
   };
@@ -145,7 +204,7 @@ export function canPrecision(s: CombatState, cfg: CharacterConfig) {
     hasManeuver(cfg, 'precision') &&
     s.superiority > 0 &&
     !a.maneuver &&
-    a.natural !== 1 &&
+    (a.natural !== 1 || !!a.natural1Ignored) &&
     (phaseOf(a) === 'rolled' || phaseOf(a) === 'miss')
   );
 }
@@ -177,6 +236,14 @@ export function resolveAttack(s: CombatState, cfg: CharacterConfig, outcome: 'hi
   return replaceCurrent(s, next);
 }
 
+/** Treat a natural 1 as an ordinary roll: back to "awaiting the DM" with the normal total. */
+export function ignoreNatural1(s: CombatState): CombatState {
+  const a = currentAttack(s);
+  if (!a || a.natural !== 1 || phaseOf(a) !== 'miss') return s;
+  return replaceCurrent(s, { ...a, natural1Ignored: true, outcome: 'pending', damage: undefined, effects: [] });
+}
+
+/** Cancel (or restore) a critical hit before damage is rolled — e.g. a target immune to crits. */
 export function setCritical(s: CombatState, critical: boolean): CombatState {
   const a = currentAttack(s);
   if (!a || phaseOf(a) !== 'hit') return s;
@@ -228,20 +295,18 @@ export function rollDamage(
 
 export const clearCurrent = (s: CombatState): CombatState => ({ ...s, currentId: null });
 
-export const newTurn = (s: CombatState): CombatState => ({
-  ...s,
-  currentId: null,
-  turn: { actionAttacks: 0, cleaveUsed: false },
-});
+export const newTurn = (s: CombatState): CombatState => ({ ...s, currentId: null, turn: freshTurn() });
 
 export function adjustSuperiority(s: CombatState, cfg: CharacterConfig, delta: number): CombatState {
   const superiority = Math.min(cfg.superiority.count, Math.max(0, s.superiority + delta));
   return { ...s, superiority };
 }
 
-export const restoreSuperiority = (s: CombatState, cfg: CharacterConfig): CombatState => ({
+/** Short or Long Rest: superiority dice and Action Surge come back. */
+export const rest = (s: CombatState, cfg: CharacterConfig): CombatState => ({
   ...s,
   superiority: cfg.superiority.count,
+  actionSurge: cfg.actionSurge.uses,
 });
 
 export const clearHistory = (s: CombatState): CombatState => ({
@@ -254,17 +319,22 @@ export function sanitizeCombatState(raw: unknown, cfg: CharacterConfig): CombatS
   const fresh = initialCombatState(cfg);
   if (!raw || typeof raw !== 'object') return fresh;
   const r = raw as Partial<CombatState>;
-  const superiority =
-    typeof r.superiority === 'number' && Number.isFinite(r.superiority)
-      ? Math.min(cfg.superiority.count, Math.max(0, Math.round(r.superiority)))
-      : fresh.superiority;
+  const count = (n: unknown, max: number) =>
+    typeof n === 'number' && Number.isFinite(n) ? Math.min(max, Math.max(0, Math.round(n))) : max;
+  const superiority = count(r.superiority, cfg.superiority.count);
+  const actionSurge = count(r.actionSurge, cfg.actionSurge.uses);
   const history = Array.isArray(r.history)
     ? r.history.filter((a) => a && typeof a.id === 'string' && Array.isArray(a.d20) && cfg.weapons.some((w) => w.id === a.weaponId)).slice(0, HISTORY_LIMIT)
     : [];
   const currentId = typeof r.currentId === 'string' && history.some((a) => a.id === r.currentId) ? r.currentId : null;
-  const turn =
-    r.turn && typeof r.turn.actionAttacks === 'number'
-      ? { actionAttacks: Math.max(0, r.turn.actionAttacks), cleaveUsed: !!r.turn.cleaveUsed }
-      : fresh.turn;
-  return { superiority, history, currentId, turn };
+  const t = (r.turn ?? {}) as Partial<TurnState>;
+  const turn: TurnState = {
+    actionAttacks: typeof t.actionAttacks === 'number' ? Math.max(0, Math.round(t.actionAttacks)) : 0,
+    actionSurged: !!t.actionSurged,
+    bonusActionUsed: !!t.bonusActionUsed,
+    reactionUsed: !!t.reactionUsed,
+    cleaveUsed: !!t.cleaveUsed,
+    override: !!t.override,
+  };
+  return { superiority, actionSurge, history, currentId, turn };
 }

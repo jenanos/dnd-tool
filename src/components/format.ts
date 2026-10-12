@@ -2,10 +2,11 @@ import { formatDie } from '../rules/dice';
 import { capitalize, formatBonus, sumModifiers } from '../rules/character';
 import type { AttackRecord, DamageResult, DamageType } from '../rules/types';
 
-export function attackNumberLabel(n: number, perAction: number) {
-  const within = ((n - 1) % perAction) + 1;
-  const surge = n > perAction ? ' · Action Surge' : '';
-  return `Attack ${within} / ${perAction}${surge}`;
+/** "Attack 1 / 2", "Attack 1 / 2 · Action Surge", or "Attack 5 · Override" beyond the normal limit. */
+export function attackNumberLabel(n: number, perAction: number, actionSurged: boolean) {
+  if (n <= perAction) return `Attack ${n} / ${perAction}`;
+  if (actionSurged && n <= 2 * perAction) return `Attack ${n - perAction} / ${perAction} · Action Surge`;
+  return `Attack ${n} · Override`;
 }
 
 const signed = (n: number) => `${n < 0 ? '−' : '+'} ${Math.abs(n)}`;

@@ -91,6 +91,11 @@ export function useCompanion() {
     undoLabel: undoStack[0]?.label,
 
     canRiposte: combatRules.canRiposte(combat, config, weapon, situation),
+    /** The selected attack type still has its action / bonus action / reaction this turn. */
+    canRoll: combatRules.hasActionFor(combat, config, source),
+    hasActionFor: (src: AttackSource) => combatRules.hasActionFor(combat, config, src),
+    canActionSurge: combatRules.canActionSurge(combat),
+    attackLimit: combatRules.attackActionLimit(combat, config),
     canPrecision: combatRules.canPrecision(combat, config),
     canCleave: combatRules.canCleave(combat) && current?.weaponId === weapon.id,
     canDamageManeuver: (m: 'trip' | 'menacing') => combatRules.canUseDamageManeuver(combat, config, m),
@@ -116,7 +121,11 @@ export function useCompanion() {
     precision: () => commit('Precision Attack', combatRules.applyPrecision(combat, env())),
     markHit: () => commit('hit', combatRules.resolveAttack(combat, config, 'hit')),
     markMiss: () => commit('miss', combatRules.resolveAttack(combat, config, 'miss')),
-    setCritical: (critical: boolean) => commit('critical', combatRules.setCritical(combat, critical)),
+    setCritical: (critical: boolean) =>
+      commit(critical ? 'critical hit' : 'cancel critical', combatRules.setCritical(combat, critical)),
+    ignoreNatural1: () => commit('ignore natural 1', combatRules.ignoreNatural1(combat)),
+    actionSurge: () => commit('Action Surge', combatRules.activateActionSurge(combat)),
+    setOverride: (on: boolean) => commit(on ? 'override' : 'override off', combatRules.setOverride(combat, on)),
     rollDamage: (maneuver?: 'trip' | 'menacing') =>
       commit(
         maneuver === 'trip' ? 'Trip Attack' : maneuver === 'menacing' ? 'Menacing Attack' : 'damage',
@@ -129,7 +138,7 @@ export function useCompanion() {
     },
     adjustSuperiority: (delta: number) =>
       commit('superiority adjustment', combatRules.adjustSuperiority(combat, config, delta)),
-    shortRest: () => commit('rest', combatRules.restoreSuperiority(combat, config)),
+    rest: () => commit('rest', combatRules.rest(combat, config)),
     clearHistory: () => commit('clear history', combatRules.clearHistory(combat)),
     undo() {
       const [last, ...rest] = undoStack;

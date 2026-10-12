@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { ChevronDown, Crosshair, Dices, RotateCcw, Shield, Skull, Sparkles, Swords } from 'lucide-react';
+import { ChevronDown, Crosshair, Dices, Flag, RotateCcw, Shield, ShieldOff, Skull, Sparkles, Swords, Undo2, Zap } from 'lucide-react';
 import {
   attackModifiers,
   buildDamagePlan,
@@ -19,7 +19,7 @@ import {
   sumModifiers,
   usesRange,
 } from '../rules/character';
-import type { AttackRecord, MasteryId, RollMode } from '../rules/types';
+import type { AttackRecord, AttackSource, MasteryId, RollMode } from '../rules/types';
 import type { Companion, ManualSource } from '../state/useCompanion';
 import { DamageDetails, DamageTypeChips, EffectList } from './DamageView';
 import { attackBonusText, attackCalc, attackNumberLabel, typeName } from './format';
@@ -58,7 +58,7 @@ export function AttackCard({ c }: { c: Companion }) {
 
 function WeaponSummary({ c }: { c: Companion }) {
   const w = c.weapon;
-  const { situation, options, current, phase } = c;
+  const { situation, options } = c;
   const melee = isMeleeAttack(w, situation);
   const plan = buildDamagePlan(c.config, w, {
     critical: false,
@@ -66,7 +66,7 @@ function WeaponSummary({ c }: { c: Companion }) {
     partOfAttackAction: partOfAttackAction(c.config, options.source),
     situation,
   });
-  const attackNumber = phase === 'ready' ? (options.source === 'action' ? c.combat.turn.actionAttacks + 1 : undefined) : current?.attackNumber;
+  const badge = turnBadge(c);
   const tags = [
     w.baseWeapon,
     ...w.properties.map((p) => p.replace(/(^|-)\w/g, (m) => m.toUpperCase())),
@@ -88,18 +88,34 @@ function WeaponSummary({ c }: { c: Companion }) {
               GWF {c.settings.gwfMode}
             </span>
           )}
-          {attackNumber !== undefined && (
-            <span className="text-[0.7rem] text-mist sm:hidden">{attackNumberLabel(attackNumber, c.config.attacksPerAction)}</span>
-          )}
+          {badge && <span className="text-[0.7rem] text-mist sm:hidden">{badge}</span>}
         </p>
       </div>
-      {attackNumber !== undefined && (
+      {badge && (
         <span className="label-caps hidden rounded-full border border-white/10 bg-abyss/60 px-3 py-1.5 text-mist sm:inline">
-          {attackNumberLabel(attackNumber, c.config.attacksPerAction)}
+          {badge}
         </span>
       )}
     </div>
   );
+}
+
+const SOURCE_BADGE: Record<AttackSource, string> = {
+  action: 'Attack action',
+  bonus: 'Bonus action',
+  reaction: 'Reaction',
+  riposte: 'Riposte · Reaction',
+  cleave: 'Cleave',
+};
+
+function turnBadge(c: Companion): string | undefined {
+  const { turn } = c.combat;
+  const per = c.config.attacksPerAction;
+  const a = c.phase === 'ready' ? undefined : c.current;
+  if (a?.attackNumber) return attackNumberLabel(a.attackNumber, per, turn.actionSurged);
+  if (a) return SOURCE_BADGE[a.source];
+  if (c.source !== 'action') return `${SOURCE_BADGE[c.source]}${c.canRoll ? '' : ' used'}`;
+  return c.canRoll ? attackNumberLabel(turn.actionAttacks + 1, per, turn.actionSurged) : 'Attacks used';
 }
 
 function AttackControls({ c }: { c: Companion }) {
@@ -182,7 +198,11 @@ function AttackControls({ c }: { c: Companion }) {
                 size="sm"
                 value={c.source}
                 onChange={c.setSource}
-                options={(['action', 'bonus', 'reaction'] as const).map((s) => ({ value: s, label: SOURCE_LABELS[s] }))}
+                options={(['action', 'bonus', 'reaction'] as const).map((s) => ({
+                  value: s,
+                  label: SOURCE_LABELS[s],
+                  disabled: s !== c.source && !c.hasActionFor(s),
+                }))}
               />
               <p className="text-xs text-mist">Great Weapon Master's bonus only applies to the Attack action on your turn.</p>
             </div>
@@ -254,11 +274,15 @@ function ReadyStage({ c }: { c: Companion }) {
         <div aria-hidden className="absolute inset-0 rounded-full bg-octarine/20 blur-2xl" />
         <Crosshair className="relative size-10 text-octarine/70 sm:size-14" strokeWidth={1.2} />
       </div>
-      <p className="label-caps text-mist">Ready to attack</p>
+      <p className="label-caps text-mist">{c.canRoll ? 'Ready to attack' : 'Turn complete'}</p>
       <p className="max-w-xs text-sm text-mist/80">
-        {c.combat.superiority > 0
-          ? 'Roll to hit, call the total to your DM.'
-          : 'No superiority dice left — Short Rest restores them.'}
+        {!c.canRoll
+          ? c.canActionSurge && c.source === 'action'
+            ? 'Both attacks used. Action Surge for two more, or start the next turn.'
+            : 'Nothing left this turn. Riposte still works on their turns.'
+          : c.combat.superiority > 0
+            ? 'Roll to hit, call the total to your DM.'
+            : 'No superiority dice left — Short Rest restores them.'}
       </p>
     </div>
   );
@@ -271,6 +295,7 @@ function RolledStage({ c, a }: { c: Companion; a: AttackRecord }) {
         <BigNumber id={`${a.id}-${a.total}`} value={a.total} label="to hit" />
         <D20Calc a={a} />
         {a.rollModeNotes.length > 0 && <p className="mt-1 text-center text-xs text-ember">{a.rollModeNotes.join(' · ')}</p>}
+        {a.natural1Ignored && <p className="mt-1 text-center text-xs text-octarine-soft">Natural 1 ignored — counts as a normal roll</p>}
       </div>
       <div className="grid grid-cols-2 gap-3">
         <Button variant="hit" size="lg" onClick={c.markHit}>
@@ -286,7 +311,7 @@ function RolledStage({ c, a }: { c: Companion; a: AttackRecord }) {
 }
 
 function PrecisionButton({ c, a }: { c: Companion; a: AttackRecord }) {
-  if (a.maneuver || a.natural === 1 || !c.config.superiority.maneuvers.includes('precision')) return null;
+  if (a.maneuver || (a.natural === 1 && !a.natural1Ignored) || !c.config.superiority.maneuvers.includes('precision')) return null;
   return (
     <Button variant="magic" size="lg" className="w-full" onClick={c.precision} disabled={!c.canPrecision}>
       <Crystal filled={c.combat.superiority > 0} size={12} />
@@ -346,19 +371,32 @@ function HitStage({ c, a }: { c: Companion; a: AttackRecord }) {
         </div>
       )}
 
-      <div className="flex justify-center">
-        <Toggle checked={a.critical} onChange={c.setCritical}>
-          Critical hit
-        </Toggle>
-      </div>
+      {a.natural === 20 && (
+        <div className="flex flex-col items-center gap-1.5">
+          {!a.critical && <p className="text-xs text-mist">Natural 20 — critical cancelled</p>}
+          <Button variant="secondary" size="sm" onClick={() => c.setCritical(!a.critical)}>
+            {a.critical ? <ShieldOff className="size-4" /> : <Sparkles className="size-4" />}
+            {a.critical ? "Can't be crit — cancel critical" : 'Restore critical hit'}
+          </Button>
+        </div>
+      )}
 
       <Button variant="primary" size="xl" className="w-full" onClick={() => c.rollDamage(maneuver === 'none' ? undefined : maneuver)}>
         <Dices className="size-6" /> Roll Damage
       </Button>
-      <div className="text-center">
+      <div className="flex justify-center gap-5">
         <button type="button" onClick={c.markMiss} className="min-h-9 text-xs text-mist underline-offset-4 hover:text-bone hover:underline">
           Actually a miss
         </button>
+        {a.natural !== 20 && (
+          <button
+            type="button"
+            onClick={() => c.setCritical(!a.critical)}
+            className="min-h-9 text-xs text-mist underline-offset-4 hover:text-bone hover:underline"
+          >
+            {a.critical ? 'Remove critical' : 'Mark as critical hit'}
+          </button>
+        )}
       </div>
     </div>
   );
@@ -393,8 +431,8 @@ function DamageStage({ c, a }: { c: Companion; a: AttackRecord }) {
             </Button>
           )}
           {showHew && (
-            <Button variant="magic" size="lg" onClick={c.hew}>
-              <Skull className="size-5" /> Hew — bonus attack
+            <Button variant="magic" size="lg" onClick={c.hew} disabled={!c.hasActionFor('bonus')}>
+              <Skull className="size-5" /> {c.hasActionFor('bonus') ? 'Hew — bonus attack' : 'Hew — bonus action used'}
             </Button>
           )}
         </div>
@@ -412,7 +450,7 @@ function MissStage({ c, a }: { c: Companion; a: AttackRecord }) {
     <div className="space-y-5">
       <div className="text-center">
         <p className="animate-rise font-display text-4xl font-bold tracking-[0.12em] text-mist uppercase sm:text-5xl">Miss</p>
-        <D20Calc a={a} prefix={a.natural === 1 ? 'Natural 1 · ' : `${a.total} to hit · `} />
+        <D20Calc a={a} prefix={a.natural === 1 && !a.natural1Ignored ? 'Natural 1 · ' : `${a.total} to hit · `} />
       </div>
       {graze ? (
         <BigNumber id={`${a.id}-graze`} value={graze.total} label={`${typeName(graze.byType[0].type)} — ${graze.label}`} />
@@ -420,11 +458,19 @@ function MissStage({ c, a }: { c: Companion; a: AttackRecord }) {
         <p className="py-4 text-center text-sm text-mist">No damage.</p>
       )}
       <PrecisionButton c={c} a={a} />
-      <div className="text-center">
-        <button type="button" onClick={c.markHit} className="min-h-9 text-xs text-mist underline-offset-4 hover:text-bone hover:underline">
-          Actually a hit
-        </button>
-      </div>
+      {a.natural === 1 && !a.natural1Ignored ? (
+        <div className="flex justify-center">
+          <Button variant="secondary" size="sm" onClick={c.ignoreNatural1}>
+            <Undo2 className="size-4" /> Ignore natural 1 — count the roll as normal
+          </Button>
+        </div>
+      ) : (
+        <div className="text-center">
+          <button type="button" onClick={c.markHit} className="min-h-9 text-xs text-mist underline-offset-4 hover:text-bone hover:underline">
+            Actually a hit
+          </button>
+        </div>
+      )}
     </div>
   );
 }
@@ -447,25 +493,49 @@ function PrimaryActions({ c }: { c: Companion }) {
   if (phase === 'rolled' || phase === 'hit') return null;
   const next = phase !== 'ready';
   const ripostePossible = c.config.superiority.maneuvers.includes('riposte') && isMeleeAttack(c.weapon, c.situation);
+  const surge = !c.canRoll && c.source === 'action' && c.canActionSurge;
   return (
-    <div className="flex gap-2">
-      <Button variant="primary" size="xl" className="flex-1" onClick={c.rollToHit}>
-        {next ? <RotateCcw className="size-5" /> : <Sparkles className="size-5" />}
-        {next ? 'Next Attack' : 'Roll to Hit'}
-      </Button>
-      {ripostePossible && (
-        <Button
-          variant="magic"
-          size="lg"
-          className="min-h-16 px-3.5 sm:px-5"
-          onClick={c.riposte}
-          disabled={!c.canRiposte}
-          title="Reaction when a creature misses you with a melee attack. Spends a superiority die. No GWM bonus."
-        >
-          <Crystal filled={c.canRiposte} size={11} />
-          Riposte
+    <div className="space-y-2">
+      {c.combat.turn.override && (
+        <p className="text-center text-xs text-ember">Override on — turn limits ignored until the next turn</p>
+      )}
+      {surge && (
+        <Button variant="magic" size="lg" className="w-full" onClick={c.actionSurge}>
+          <Zap className="size-5" /> Action Surge
+          <span className="text-xs opacity-75">
+            +{c.config.attacksPerAction} attacks · {c.combat.actionSurge}/{c.config.actionSurge.uses}
+          </span>
         </Button>
       )}
+      <div className="flex gap-2">
+        {c.canRoll ? (
+          <Button variant="primary" size="xl" className="flex-1" onClick={c.rollToHit}>
+            {next ? <RotateCcw className="size-5" /> : <Sparkles className="size-5" />}
+            {next ? 'Next Attack' : 'Roll to Hit'}
+          </Button>
+        ) : (
+          <Button variant={surge ? 'secondary' : 'primary'} size="xl" className="flex-1" onClick={c.newTurn}>
+            <Flag className="size-5" /> New Turn
+          </Button>
+        )}
+        {ripostePossible && (
+          <Button
+            variant="magic"
+            size="lg"
+            className="min-h-16 px-3.5 sm:px-5"
+            onClick={c.riposte}
+            disabled={!c.canRiposte}
+            title={
+              c.hasActionFor('riposte')
+                ? 'Reaction when a creature misses you with a melee attack. Spends a superiority die. No GWM bonus.'
+                : 'Reaction already used this round'
+            }
+          >
+            <Crystal filled={c.canRiposte} size={11} />
+            Riposte
+          </Button>
+        )}
+      </div>
     </div>
   );
 }

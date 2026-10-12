@@ -20,15 +20,16 @@ The production build registers a small service worker and a web manifest, so on 
 | Step | What you do |
 |---|---|
 | Ready | Pick a weapon (Eventide Frost is the default). Set Normal / Advantage / Disadvantage. |
-| Roll to Hit | Big total, e.g. **24 TO HIT**, with `d20 (14) + 10` underneath. Nat 20 skips straight to a critical hit; nat 1 is an automatic miss. |
+| Roll to Hit | Big total, e.g. **24 TO HIT**, with `d20 (14) + 10` underneath. A natural 20 is automatically a critical hit (**Can't be crit** cancels it for crit-immune targets). A natural 1 is automatically a miss (**Ignore natural 1** turns it back into an ordinary roll). |
 | DM says miss | **Precision Attack** adds 1d8 to the same roll (no new d20), or press **Miss**. Eventide Frost shows **5 SLASHING — GRAZE**. |
 | DM says hit | Optionally choose **Trip** or **Menacing**, then **Roll Damage**. The total is shown with a Slashing / Cold / Piercing breakdown and any save DCs. |
-| Next | **Next Attack** rolls again straight away. **Riposte** is always next to it. |
+| Next | **Next Attack** rolls again while the turn has attacks left. After that the big button becomes **New Turn**, with **Action Surge** offered if you have a use. **Riposte** sits next to it as long as your reaction is unused. |
 
 - **Dice details**: expand the row under the damage to see every die (`1→3` means Great Weapon Fighting changed a 1 into a 3).
-- **Corrections**: "Actually a miss / hit", the **Critical hit** toggle (e.g. a paralysed target), the **±** on superiority dice and **Undo** (which also gives back spent dice).
+- **Corrections**: "Actually a miss / hit", "Mark as critical hit" for non-20 rolls (e.g. a paralysed target), the **±** on superiority dice and **Undo** (which also restores spent dice and turn resources).
 - **Attack type & Tactical Master** (collapsed under the roll-mode buttons): mark a Bonus-action or Reaction attack (no Great Weapon Master bonus), or swap the weapon's mastery for Push / Sap / Slow for one attack. Both reset to the defaults after each roll.
-- **Turn panel**: counts Attack-action attacks (`Attack 1 / 2`; a third or fourth shows as Action Surge) and Cleave use. Press **New turn** to reset it. It doesn't block you; it only keeps count.
+- **Turn**: every turn you have one Attack action (2 attacks), one bonus action (Hew, or a manual Bonus-action attack) and one reaction (Riposte or an opportunity attack). The app blocks anything beyond that. **Action Surge** has to be activated: it gives 2 more attacks, works once per turn, and its uses (`actionSurge.uses` in the config) come back on a rest. **New Turn** resets everything, including your reaction, so press it at the start of your turn.
+- **Override** (Turn panel): turns off every turn limit for unusual situations, such as extra attacks from an ally's spell. It switches off again at the next **New Turn**.
 
 ## Configuration
 

@@ -1,8 +1,8 @@
-import { Flag, Minus, Moon, Plus } from 'lucide-react';
+import { Flag, Minus, Moon, Plus, Zap } from 'lucide-react';
 import { maneuverSaveDc } from '../rules/character';
 import type { GwfMode } from '../rules/types';
 import type { Companion } from '../state/useCompanion';
-import { Button, Crystal, Segmented } from './ui';
+import { Button, Crystal, cx, Segmented, Toggle } from './ui';
 
 function PanelTitle({ children, aside }: { children: React.ReactNode; aside?: React.ReactNode }) {
   return (
@@ -34,7 +34,14 @@ export function SuperiorityPanel({ c }: { c: Companion }) {
           <Plus className="size-4" />
         </Button>
       </div>
-      <Button variant="ghost" size="sm" className="mt-3 w-full" onClick={c.shortRest} disabled={n === count}>
+      <Button
+        variant="ghost"
+        size="sm"
+        className="mt-3 w-full"
+        onClick={c.rest}
+        disabled={n === count && c.combat.actionSurge === c.config.actionSurge.uses}
+        title="Restores superiority dice and Action Surge"
+      >
         <Moon className="size-4" /> Short / Long Rest — restore all
       </Button>
     </section>
@@ -66,8 +73,9 @@ export function GwfPanel({ c }: { c: Companion }) {
 }
 
 export function TurnPanel({ c }: { c: Companion }) {
-  const { actionAttacks, cleaveUsed } = c.combat.turn;
+  const { turn } = c.combat;
   const per = c.config.attacksPerAction;
+  const pips = Math.max(c.attackLimit, turn.actionAttacks);
   const showCleave = c.config.weapons.some((w) => w.mastery === 'cleave');
   return (
     <section className="panel p-4">
@@ -80,24 +88,64 @@ export function TurnPanel({ c }: { c: Companion }) {
       >
         Turn
       </PanelTitle>
+
       <div className="flex items-center gap-3">
         <div className="flex gap-1.5">
-          {Array.from({ length: Math.max(per, Math.ceil(actionAttacks / per) * per) }, (_, i) => (
+          {Array.from({ length: pips }, (_, i) => (
             <span
               key={i}
-              className={
-                i < actionAttacks
-                  ? 'h-2 w-6 rounded-full bg-octarine shadow-[0_0_8px_var(--color-octarine)]'
-                  : 'h-2 w-6 rounded-full bg-white/12'
-              }
+              className={cx(
+                'h-2 w-6 rounded-full',
+                i >= turn.actionAttacks
+                  ? 'bg-white/12'
+                  : i >= c.attackLimit
+                    ? 'bg-ember' // beyond the normal limit, via Override
+                    : 'bg-octarine shadow-[0_0_8px_var(--color-octarine)]',
+                i === per && 'ml-1.5',
+              )}
             />
           ))}
         </div>
         <span className="text-sm text-bone/90">
-          {actionAttacks === 0 ? 'No attacks yet' : `${actionAttacks} Attack-action ${actionAttacks === 1 ? 'attack' : 'attacks'}`}
+          Attacks {Math.min(turn.actionAttacks, c.attackLimit)} / {c.attackLimit}
         </span>
       </div>
-      {showCleave && <p className="mt-2 text-xs text-mist">Cleave {cleaveUsed ? 'used this turn' : 'available this turn'}</p>}
+
+      <div className="mt-3 flex flex-wrap gap-x-4 gap-y-1.5 text-xs">
+        <Slot used={turn.bonusActionUsed}>Bonus action</Slot>
+        <Slot used={turn.reactionUsed}>Reaction</Slot>
+        {showCleave && <Slot used={turn.cleaveUsed}>Cleave</Slot>}
+      </div>
+
+      <div className="mt-4 flex flex-wrap items-center gap-2">
+        <Button
+          variant={turn.actionSurged ? 'secondary' : 'magic'}
+          size="sm"
+          onClick={c.actionSurge}
+          disabled={!c.canActionSurge}
+          title="Once per turn; uses come back on a Short or Long Rest"
+        >
+          <Zap className="size-4" />
+          {turn.actionSurged ? 'Action Surge active' : 'Action Surge'}
+          <span className="opacity-70">
+            {c.combat.actionSurge}/{c.config.actionSurge.uses}
+          </span>
+        </Button>
+        <span className="flex-1" />
+        <Toggle checked={turn.override} onChange={c.setOverride} tone="warn">
+          Override
+        </Toggle>
+      </div>
+      {turn.override && <p className="mt-2 text-xs text-ember">Limits ignored until the next turn.</p>}
     </section>
+  );
+}
+
+function Slot({ used, children }: { used: boolean; children: React.ReactNode }) {
+  return (
+    <span className={cx('inline-flex items-center gap-1.5', used ? 'text-mist/60 line-through' : 'text-bone/90')}>
+      <span className={cx('size-2 rounded-full', used ? 'bg-white/15' : 'bg-delerium shadow-[0_0_6px_var(--color-delerium)]')} />
+      {children}
+    </span>
   );
 }

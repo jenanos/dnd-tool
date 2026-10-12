@@ -61,6 +61,8 @@ export interface CharacterConfig {
   abilityScores: Record<Ability, number>;
   proficiencyBonus: number;
   attacksPerAction: number;
+  /** Action Surge uses per Short or Long Rest. */
+  actionSurge: { uses: number };
   fightingStyles: string[];
   feats: { greatWeaponMaster: { enabled: boolean } };
   superiority: { count: number; die: number; saveAbility: Ability; maneuvers: ManeuverId[] };
@@ -172,6 +174,8 @@ export interface AttackRecord {
   rollModeNotes: string[];
   d20: number[];
   natural: number;
+  /** A natural 1 the player chose to treat as an ordinary roll (e.g. an ally's effect). */
+  natural1Ignored?: boolean;
   attackModifiers: Modifier[];
   precision?: DieResult;
   total: number;

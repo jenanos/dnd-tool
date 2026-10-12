@@ -4,7 +4,13 @@ import type { AttackOptions, CharacterConfig, DamageResult, Situation } from './
 import { scriptedRng } from './dice';
 import { buildDamagePlan, defaultOptions, formatPlan, getWeapon, hewApplies, maneuverSaveDc, resolveRollMode } from './character';
 import {
+  activateActionSurge,
   adjustSuperiority,
+  canActionSurge,
+  hasActionFor,
+  ignoreNatural1,
+  newTurn,
+  setOverride,
   applyPrecision,
   canCleave,
   canPrecision,
@@ -12,7 +18,7 @@ import {
   initialCombatState,
   phaseOf,
   resolveAttack,
-  restoreSuperiority,
+  rest,
   rollDamage,
   sanitizeCombatState,
   setCritical,
@@ -98,6 +104,78 @@ describe('attack roll', () => {
     expect(s.turn.actionAttacks).toBe(2);
     expect(currentAttack(s)?.attackNumber).toBeUndefined();
     expect(s.history[1].attackNumber).toBe(2);
+  });
+});
+
+describe('critical hit and natural 1 overrides', () => {
+  it('a natural 20 crit can be cancelled (target immune to crits) and still hits', () => {
+    const s = setCritical(attack([20]), false);
+    const a = currentAttack(hitAndDamage(s, [4, 4, 4]))!;
+    expect(a.outcome).toBe('hit');
+    expect(a.damage!.critical).toBe(false);
+    expect(a.damage!.terms.map((t) => t.count)).toEqual([2, 1]);
+  });
+
+  it('a natural 1 can be treated as an ordinary roll', () => {
+    const s = ignoreNatural1(attack([1]));
+    const a = currentAttack(s)!;
+    expect(phaseOf(a)).toBe('rolled');
+    expect(a.total).toBe(11);
+    expect(a.damage).toBeUndefined();
+    expect(canPrecision(s, cfg)).toBe(true);
+    expect(currentAttack(applyPrecision(s, env([7])))!.total).toBe(18);
+  });
+
+  it('only natural 1s can be ignored', () => {
+    const s = resolveAttack(attack([5]), cfg, 'miss');
+    expect(ignoreNatural1(s)).toBe(s);
+  });
+});
+
+describe('turn economy', () => {
+  it('allows two Attack-action attacks, then blocks until Action Surge', () => {
+    let s = attack([10]);
+    s = attack([10], EVENTIDE, {}, s);
+    expect(hasActionFor(s, cfg, 'action')).toBe(false);
+    expect(attack([10], EVENTIDE, {}, s)).toBe(s);
+
+    s = activateActionSurge(s);
+    expect(s.actionSurge).toBe(0);
+    s = attack([10], EVENTIDE, {}, s);
+    s = attack([10], EVENTIDE, {}, s);
+    expect(currentAttack(s)!.attackNumber).toBe(4);
+    expect(attack([10], EVENTIDE, {}, s)).toBe(s);
+  });
+
+  it('Action Surge is once per turn and limited by uses until a rest', () => {
+    let s = activateActionSurge(initialCombatState(cfg));
+    expect(canActionSurge(s)).toBe(false);
+    s = newTurn(s);
+    expect(s.turn.actionSurged).toBe(false);
+    expect(canActionSurge(s)).toBe(false); // no uses left
+    expect(canActionSurge(rest(s, cfg))).toBe(true);
+  });
+
+  it('one bonus action and one reaction per turn', () => {
+    let s = attack([10], EVENTIDE, { source: 'bonus' });
+    expect(attack([10], EVENTIDE, { source: 'bonus' }, s)).toBe(s);
+    s = attack([10], EVENTIDE, { source: 'riposte' }, s);
+    expect(s.superiority).toBe(4);
+    expect(attack([10], EVENTIDE, { source: 'reaction' }, s)).toBe(s);
+    expect(attack([10], EVENTIDE, { source: 'riposte' }, s)).toBe(s);
+    // Attack action is unaffected.
+    expect(hasActionFor(s, cfg, 'action')).toBe(true);
+  });
+
+  it('override lifts every limit until the next turn', () => {
+    let s = setOverride(attack([10], EVENTIDE, { source: 'bonus' }), true);
+    s = attack([10], EVENTIDE, { source: 'bonus' }, s);
+    for (let i = 0; i < 4; i++) s = attack([10], EVENTIDE, {}, s);
+    expect(s.turn.actionAttacks).toBe(4);
+    expect(s.history).toHaveLength(6);
+    s = newTurn(s);
+    expect(s.turn.override).toBe(false);
+    expect(s.turn.bonusActionUsed).toBe(false);
   });
 });
 
@@ -282,7 +360,7 @@ describe('superiority dice', () => {
     expect(s.superiority).toBe(5);
     s = adjustSuperiority(s, cfg, -9);
     expect(s.superiority).toBe(0);
-    expect(restoreSuperiority(s, cfg).superiority).toBe(5);
+    expect(rest(s, cfg).superiority).toBe(5);
   });
 
   it('blocks Trip and Riposte at zero dice', () => {
@@ -294,7 +372,7 @@ describe('superiority dice', () => {
 
   it('restoring dice does not touch the static config', () => {
     const before = JSON.stringify(config);
-    restoreSuperiority(adjustSuperiority(initialCombatState(cfg), cfg, -2), cfg);
+    rest(adjustSuperiority(initialCombatState(cfg), cfg, -2), cfg);
     expect(JSON.stringify(config)).toBe(before);
   });
 });

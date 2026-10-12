@@ -10,6 +10,7 @@
   "abilityScores": { "str": 20, "dex": 13, "con": 18, "int": 8, "wis": 12, "cha": 10 },
   "proficiencyBonus": 4,
   "attacksPerAction": 2,
+  "actionSurge": { "uses": 1 },
   "fightingStyles": ["greatWeaponFighting"],
   "feats": {
     "greatWeaponMaster": { "enabled": true }
