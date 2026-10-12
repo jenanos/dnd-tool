@@ -1,0 +1,104 @@
+@import 'tailwindcss';
+
+@theme {
+  --color-abyss: #0b0c13;
+  --color-obsidian: #10121b;
+  --color-ash: #181a26;
+  --color-plum: #30203f;
+  --color-plum-deep: #1d1628;
+  --color-octarine: #a779ff;
+  --color-octarine-soft: #cdb6ff;
+  --color-delerium: #a9f5b6;
+  --color-frost: #84d8f5;
+  --color-ember: #ff8a7a;
+  --color-bone: #efe6d2;
+  --color-mist: #9b98b0;
+
+  --font-display: 'Cinzel', ui-serif, Georgia, serif;
+  --font-sans: 'Inter Variable', ui-sans-serif, system-ui, sans-serif;
+
+  --animate-rise: rise 260ms cubic-bezier(0.2, 0.8, 0.2, 1);
+  --animate-crit: crit 1100ms ease-out;
+
+  @keyframes rise {
+    from {
+      opacity: 0;
+      transform: translateY(6px) scale(0.97);
+    }
+    to {
+      opacity: 1;
+      transform: none;
+    }
+  }
+  @keyframes crit {
+    0% {
+      box-shadow: 0 0 0 0 rgb(169 245 182 / 0.7), inset 0 0 60px rgb(169 245 182 / 0.35);
+    }
+    100% {
+      box-shadow: 0 0 0 18px rgb(169 245 182 / 0), inset 0 0 0 rgb(169 245 182 / 0);
+    }
+  }
+}
+
+@layer base {
+  html {
+    color-scheme: dark;
+    -webkit-tap-highlight-color: transparent;
+  }
+  body {
+    @apply bg-obsidian font-sans text-bone antialiased;
+    min-height: 100dvh;
+  }
+  /* The Haze: a fixed layer, since iOS ignores background-attachment: fixed. */
+  body::before {
+    content: '';
+    position: fixed;
+    inset: 0;
+    z-index: -1;
+    pointer-events: none;
+    background-image:
+      radial-gradient(1200px 520px at 15% -10%, rgb(167 121 255 / 0.16), transparent 60%),
+      radial-gradient(900px 500px at 110% 10%, rgb(132 216 245 / 0.07), transparent 60%),
+      radial-gradient(800px 600px at 50% 120%, rgb(169 245 182 / 0.06), transparent 60%);
+  }
+  button {
+    cursor: pointer;
+  }
+  button:disabled {
+    cursor: not-allowed;
+  }
+  :focus-visible {
+    outline: 2px solid var(--color-octarine);
+    outline-offset: 2px;
+  }
+}
+
+@utility panel {
+  @apply rounded-2xl border border-white/8 bg-ash/80 backdrop-blur-sm;
+  box-shadow:
+    0 1px 0 rgb(255 255 255 / 0.04) inset,
+    0 20px 40px -24px rgb(0 0 0 / 0.8);
+}
+
+@utility glow-violet {
+  box-shadow:
+    0 0 0 1px rgb(167 121 255 / 0.35),
+    0 0 32px -6px rgb(167 121 255 / 0.55);
+}
+
+@utility text-glow {
+  text-shadow: 0 0 28px rgb(167 121 255 / 0.55);
+}
+
+@utility label-caps {
+  @apply font-display text-[0.7rem] font-semibold tracking-[0.22em] uppercase;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 1ms !important;
+    transition-duration: 1ms !important;
+  }
+}
