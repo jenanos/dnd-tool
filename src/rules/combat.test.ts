@@ -11,6 +11,7 @@ import {
   ignoreNatural1,
   newTurn,
   setOverride,
+  turnSummary,
   applyPrecision,
   canCleave,
   canPrecision,
@@ -176,6 +177,28 @@ describe('turn economy', () => {
     s = newTurn(s);
     expect(s.turn.override).toBe(false);
     expect(s.turn.bonusActionUsed).toBe(false);
+  });
+});
+
+describe('turn damage summary', () => {
+  it('adds up hits and Graze by type, and leaves out reactions', () => {
+    let s = hitAndDamage(attack([14]), [4, 5, 3]); // 19 slashing + 3 cold
+    s = resolveAttack(attack([4], EVENTIDE, {}, s), cfg, 'miss'); // Graze 5
+    s = hitAndDamage(attack([12], EVENTIDE, { source: 'bonus' }, s), [6, 6, 2]); // 18 slashing + 3 cold (GWF 2→3)
+    s = hitAndDamage(attack([15], EVENTIDE, { source: 'riposte' }, s), [6, 6, 6, 6]); // reaction: not counted
+
+    const t = turnSummary(s);
+    expect(t.attacks.map((a) => a.total)).toEqual([24, 14, 22]);
+    expect(t.byType).toEqual([
+      { type: 'slashing', amount: 19 + 5 + 18 },
+      { type: 'cold', amount: 6 },
+    ]);
+    expect(t.total).toBe(48);
+  });
+
+  it('starts empty on a new turn', () => {
+    const s = newTurn(hitAndDamage(attack([14]), [4, 4, 4]));
+    expect(turnSummary(s)).toEqual({ attacks: [], byType: [], total: 0 });
   });
 });
 

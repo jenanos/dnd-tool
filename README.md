@@ -29,6 +29,7 @@ The production build registers a small service worker and a web manifest, so on 
 - **Corrections**: "Actually a miss / hit", "Mark as critical hit" for non-20 rolls (e.g. a paralysed target), the **±** on superiority dice and **Undo** (which also restores spent dice and turn resources).
 - **Attack type & Tactical Master** (collapsed under the roll-mode buttons): mark a Bonus-action or Reaction attack (no Great Weapon Master bonus), or swap the weapon's mastery for Push / Sap / Slow for one attack. Both reset to the defaults after each roll.
 - **Turn**: every turn you have one Attack action (2 attacks), one bonus action (Hew, or a manual Bonus-action attack) and one reaction (Riposte or an opportunity attack). The app blocks anything beyond that. **Action Surge** has to be activated: it gives 2 more attacks, works once per turn, and its uses (`actionSurge.uses` in the config) come back on a rest. **New Turn** resets everything, including your reaction, so press it at the start of your turn.
+- **This turn**: from the second attack onwards, a summary above the buttons lists each attack's to-hit and result, plus the combined damage for the turn by type (e.g. `53 Slashing · 11 Cold`), so the DM gets one number. Graze counts. Reactions (Riposte, opportunity attacks) happen on other turns and aren't included. **New Turn** clears it.
 - **Override** (Turn panel): turns off every turn limit for unusual situations, such as extra attacks from an ally's spell. It switches off again at the next **New Turn**.
 
 ## Configuration

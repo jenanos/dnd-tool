@@ -96,6 +96,7 @@ export function useCompanion() {
     hasActionFor: (src: AttackSource) => combatRules.hasActionFor(combat, config, src),
     canActionSurge: combatRules.canActionSurge(combat),
     attackLimit: combatRules.attackActionLimit(combat, config),
+    turnSummary: combatRules.turnSummary(combat),
     canPrecision: combatRules.canPrecision(combat, config),
     canCleave: combatRules.canCleave(combat) && current?.weaponId === weapon.id,
     canDamageManeuver: (m: 'trip' | 'menacing') => combatRules.canUseDamageManeuver(combat, config, m),

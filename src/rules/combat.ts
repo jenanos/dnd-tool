@@ -1,7 +1,17 @@
 // Pure combat-state transitions. Every function takes the current state and returns the next one;
 // illegal actions return the state unchanged (the UI disables them, this is the safety net).
 
-import type { AttackOptions, AttackRecord, AttackSource, CharacterConfig, GwfMode, ManeuverId, Situation, WeaponConfig } from './types';
+import type {
+  AttackOptions,
+  AttackRecord,
+  AttackSource,
+  CharacterConfig,
+  DamageType,
+  GwfMode,
+  ManeuverId,
+  Situation,
+  WeaponConfig,
+} from './types';
 import { rollD20, type Rng } from './dice';
 import {
   attackModifiers,
@@ -28,6 +38,8 @@ export interface TurnState {
   cleaveUsed: boolean;
   /** Ignore all per-turn limits until the next turn. */
   override: boolean;
+  /** Attacks made on your own turn (not reactions), oldest first — for the turn damage summary. */
+  attackIds: string[];
 }
 
 export interface CombatState {
@@ -63,6 +75,7 @@ export const freshTurn = (): TurnState => ({
   reactionUsed: false,
   cleaveUsed: false,
   override: false,
+  attackIds: [],
 });
 
 export const currentAttack = (s: CombatState) =>
@@ -113,6 +126,25 @@ export function activateActionSurge(s: CombatState): CombatState {
 }
 
 export const setOverride = (s: CombatState, override: boolean): CombatState => ({ ...s, turn: { ...s.turn, override } });
+
+const isReaction = (source: AttackSource) => source === 'reaction' || source === 'riposte';
+
+export interface TurnSummary {
+  attacks: AttackRecord[];
+  byType: { type: DamageType; amount: number }[];
+  total: number;
+}
+
+/** Everything dealt on your turn so far (hits and Graze), so the DM gets one total. */
+export function turnSummary(s: CombatState): TurnSummary {
+  const attacks = s.turn.attackIds
+    .map((id) => s.history.find((a) => a.id === id))
+    .filter((a): a is AttackRecord => !!a);
+  const amounts = new Map<DamageType, number>();
+  for (const a of attacks) for (const t of a.damage?.byType ?? []) amounts.set(t.type, (amounts.get(t.type) ?? 0) + t.amount);
+  const byType = [...amounts].map(([type, amount]) => ({ type, amount }));
+  return { attacks, byType, total: byType.reduce((n, t) => n + t.amount, 0) };
+}
 
 // --- Starting attacks -------------------------------------------------------
 
@@ -180,6 +212,7 @@ export function startAttack(s: CombatState, env: Env, weaponId: string, options:
       bonusActionUsed: s.turn.bonusActionUsed || source === 'bonus',
       reactionUsed: s.turn.reactionUsed || source === 'reaction' || source === 'riposte',
       cleaveUsed: s.turn.cleaveUsed || source === 'cleave',
+      attackIds: isReaction(source) ? s.turn.attackIds : [...s.turn.attackIds, record.id],
     },
   };
 }
@@ -335,6 +368,7 @@ export function sanitizeCombatState(raw: unknown, cfg: CharacterConfig): CombatS
     reactionUsed: !!t.reactionUsed,
     cleaveUsed: !!t.cleaveUsed,
     override: !!t.override,
+    attackIds: Array.isArray(t.attackIds) ? t.attackIds.filter((id) => history.some((a) => a.id === id)) : [],
   };
   return { superiority, actionSurge, history, currentId, turn };
 }

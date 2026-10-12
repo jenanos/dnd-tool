@@ -22,6 +22,7 @@ import {
 import type { AttackRecord, AttackSource, MasteryId, RollMode } from '../rules/types';
 import type { Companion, ManualSource } from '../state/useCompanion';
 import { DamageDetails, DamageTypeChips, EffectList } from './DamageView';
+import { TurnSummary } from './TurnSummary';
 import { attackBonusText, attackCalc, attackNumberLabel, typeName } from './format';
 import { Button, Crystal, cx, Segmented, Toggle } from './ui';
 
@@ -50,6 +51,7 @@ export function AttackCard({ c }: { c: Companion }) {
           {phase === 'damage' && current && <DamageStage key={current.id} c={c} a={current} />}
           {phase === 'miss' && current && <MissStage c={c} a={current} />}
         </div>
+        <TurnSummary c={c} />
         <PrimaryActions c={c} />
       </div>
     </section>
