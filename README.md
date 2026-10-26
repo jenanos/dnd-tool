@@ -46,6 +46,19 @@ styles, Tactical Master options, house rules and the four weapons. The app never
 Browser storage only holds settings (GWF mode, selected weapon, situational toggles), remaining
 superiority dice, the turn counter and the last 40 attacks.
 
+To change the character (a level-up, a new weapon), edit `character.json` and push to `main`. No
+test changes are needed:
+
+- The rules tests in `src/rules/combat.test.ts` run against a frozen copy,
+  [`src/rules/fixtures/character.json`](src/rules/fixtures/character.json). Only touch it when
+  changing the rules engine itself.
+- `src/data/character.test.ts` checks the real file with
+  [`validateCharacter`](src/data/validateCharacter.ts): allowed values (dice, damage types,
+  masteries, weapon properties…), unique weapon ids, misspelt weapon fields, and that every weapon
+  can roll an attack and damage. A mistake fails the deploy with a message naming the field, e.g.
+  `weapons[0] (eventide-frost).properties[1]: must be one of … (got "two-handled")`, and the live
+  site keeps the previous version.
+
 Weapon fields worth knowing:
 
 - `damageAbilities`: ability modifiers added to damage (`["str", "dex"]` for the Longbow).

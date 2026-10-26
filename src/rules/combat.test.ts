@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import config from '../data/character.json';
+// A frozen copy of the character, so editing src/data/character.json never breaks these tests.
+import config from './fixtures/character.json';
 import type { AttackOptions, CharacterConfig, DamageResult, Situation } from './types';
 import { scriptedRng } from './dice';
 import { buildDamagePlan, defaultOptions, formatPlan, getWeapon, hewApplies, maneuverSaveDc, resolveRollMode } from './character';

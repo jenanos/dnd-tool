@@ -1,0 +1,112 @@
+{
+  "character": {
+    "name": "Elias Dawnridge",
+    "className": "Fighter",
+    "subclass": "Battle Master",
+    "level": 9,
+    "campaign": "Dungeons of Drakkenheim",
+    "size": "Medium"
+  },
+  "abilityScores": { "str": 20, "dex": 13, "con": 18, "int": 8, "wis": 12, "cha": 10 },
+  "proficiencyBonus": 4,
+  "attacksPerAction": 2,
+  "actionSurge": { "uses": 1 },
+  "fightingStyles": ["greatWeaponFighting"],
+  "feats": {
+    "greatWeaponMaster": { "enabled": true }
+  },
+  "superiority": {
+    "count": 5,
+    "die": 8,
+    "saveAbility": "str",
+    "maneuvers": ["precision", "trip", "menacing", "riposte"]
+  },
+  "tacticalMaster": {
+    "enabled": true,
+    "options": ["push", "sap", "slow"]
+  },
+  "rules": {
+    "greatWeaponFightingDefault": "2024",
+    "houseRules": {
+      "greatWeaponFightingAppliesToAllDamageDice": true,
+      "cleaveCountsAsPartOfAttackAction": true
+    }
+  },
+  "weapons": [
+    {
+      "id": "eventide-frost",
+      "name": "Eventide Frost",
+      "baseWeapon": "Greatsword",
+      "category": "melee",
+      "magicBonus": 1,
+      "properties": ["heavy", "two-handed"],
+      "reach": 5,
+      "attackAbility": "str",
+      "damageAbilities": ["str"],
+      "damage": { "count": 2, "sides": 6, "type": "slashing" },
+      "extraDamage": [
+        { "label": "Frost", "count": 1, "sides": 6, "type": "cold" }
+      ],
+      "mastery": "graze",
+      "primary": true
+    },
+    {
+      "id": "greataxe",
+      "name": "Greataxe +1",
+      "baseWeapon": "Greataxe",
+      "category": "melee",
+      "magicBonus": 1,
+      "properties": ["heavy", "two-handed"],
+      "reach": 5,
+      "attackAbility": "str",
+      "damageAbilities": ["str"],
+      "damage": { "count": 1, "sides": 12, "type": "slashing" },
+      "mastery": "cleave"
+    },
+    {
+      "id": "giant-slayer-javelin",
+      "name": "Giant Slayer Javelin",
+      "baseWeapon": "Javelin",
+      "category": "melee",
+      "magicBonus": 1,
+      "properties": ["thrown"],
+      "reach": 5,
+      "range": { "normal": 30, "long": 120 },
+      "attackAbility": "str",
+      "damageAbilities": ["str"],
+      "damage": { "count": 1, "sides": 6, "type": "piercing" },
+      "extraDamage": [
+        { "label": "Giant Slayer", "count": 2, "sides": 6, "type": "piercing", "when": "targetIsGiant" }
+      ],
+      "onHit": [
+        { "text": "Giant: DC 15 STR save or Prone", "when": "targetIsGiant", "tone": "save" }
+      ],
+      "mastery": "slow"
+    },
+    {
+      "id": "lord-of-the-feast",
+      "name": "Lord of the Feast's Longbow",
+      "shortName": "Lord of the Feast",
+      "baseWeapon": "Longbow",
+      "category": "ranged",
+      "magicBonus": 0,
+      "properties": ["heavy", "two-handed", "ammunition"],
+      "range": { "normal": 150, "long": 600 },
+      "attackAbility": "dex",
+      "damageAbilities": ["str", "dex"],
+      "damageBonusAdjustment": 0,
+      "damage": { "count": 2, "sides": 6, "type": "piercing" },
+      "strengthRequirement": 17,
+      "movementDisadvantageForSizes": ["Medium"],
+      "mastery": "push",
+      "notes": "D&D Beyond shows 2d6+9. The written description (STR + DEX to damage) plus 2024 Great Weapon Master gives 2d6+10. Use damageBonusAdjustment if the DM rules otherwise."
+    }
+  ],
+  "masteries": {
+    "graze": { "name": "Graze", "summary": "On a miss, deal damage equal to the attack's ability modifier." },
+    "cleave": { "name": "Cleave", "summary": "On a hit, attack a second creature within 5 ft of the first. Once per turn." },
+    "slow": { "name": "Slow", "summary": "Speed −10 ft until the start of your next turn (doesn't stack)." },
+    "push": { "name": "Push", "summary": "Push the target up to 10 ft straight away (Large or smaller)." },
+    "sap": { "name": "Sap", "summary": "Target has Disadvantage on its next attack roll before your next turn." }
+  }
+}
