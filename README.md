@@ -12,11 +12,13 @@ npm test          # rules engine tests (Vitest)
 npm run build     # static site in dist/ — host anywhere (relative paths, works from a sub-folder)
 ```
 
-Every push to `master` runs the tests, builds and publishes to GitHub Pages
+Every push to `main` runs the tests, builds and publishes to GitHub Pages
 (`.github/workflows/pages.yml`): https://jenanos.github.io/dnd-tool/
 
 The production build registers a small service worker and a web manifest, so on a phone you can
-"Add to Home Screen" and it works offline.
+"Add to Home Screen" and it works offline. The build writes every output file into `dist/sw.js`
+(see `vite.config.ts`), so one visit is enough to cache the whole app, and each deploy replaces
+the previous cache.
 
 ## Using it
 
