@@ -26,14 +26,20 @@ import { TurnSummary } from './TurnSummary';
 import { attackBonusText, attackCalc, attackNumberLabel, typeName } from './format';
 import { Button, Crystal, cx, Segmented, Toggle } from './ui';
 
-export function AttackCard({ c }: { c: Companion }) {
+/** `compact`: the phone layout pins the turn summary and the main buttons outside the card. */
+export function AttackCard({ c, compact = false }: { c: Companion; compact?: boolean }) {
   const { current, phase } = c;
+  // On a phone the weapon and roll setup folds to one line once an attack is under way, so the
+  // result fits on screen. Opening it lasts for that attack only.
+  const [setupOpenFor, setSetupOpenFor] = useState<string>();
+  const folded = compact && phase !== 'ready' && !!current && setupOpenFor !== current.id;
   return (
     <section
       key={current?.critical ? `${current.id}-crit` : undefined}
       aria-label="Attack"
       className={cx(
-        'panel relative overflow-hidden p-4 sm:p-6',
+        'panel relative overflow-hidden sm:p-6',
+        compact ? 'p-3.5' : 'p-4',
         current?.critical && phase !== 'ready' ? 'animate-crit border-delerium/40' : 'border-octarine/20',
       )}
     >
@@ -41,9 +47,15 @@ export function AttackCard({ c }: { c: Companion }) {
         aria-hidden
         className="pointer-events-none absolute -top-32 left-1/2 h-64 w-[36rem] -translate-x-1/2 rounded-full bg-octarine/10 blur-3xl"
       />
-      <div className="relative space-y-5">
-        <WeaponSummary c={c} />
-        <AttackControls c={c} />
+      <div className="relative space-y-4 sm:space-y-5">
+        {folded ? (
+          <SetupLine c={c} onOpen={() => setSetupOpenFor(current.id)} />
+        ) : (
+          <>
+            <WeaponSummary c={c} />
+            <AttackControls c={c} />
+          </>
+        )}
         <div className="sm:min-h-[17rem]">
           {phase === 'ready' && <ReadyStage c={c} />}
           {phase === 'rolled' && current && <RolledStage c={c} a={current} />}
@@ -51,8 +63,12 @@ export function AttackCard({ c }: { c: Companion }) {
           {phase === 'damage' && current && <DamageStage key={current.id} c={c} a={current} />}
           {phase === 'miss' && current && <MissStage c={c} a={current} />}
         </div>
-        <TurnSummary c={c} />
-        <PrimaryActions c={c} />
+        {!compact && (
+          <>
+            <TurnSummary c={c} />
+            <PrimaryActions c={c} />
+          </>
+        )}
       </div>
     </section>
   );
@@ -78,7 +94,7 @@ function WeaponSummary({ c }: { c: Companion }) {
   return (
     <div className="flex flex-wrap items-start justify-between gap-x-4 gap-y-2">
       <div className="min-w-0">
-        <h2 className="font-display text-[1.6rem] leading-tight font-bold tracking-wide text-bone sm:text-3xl">{w.name}</h2>
+        <h2 className="font-display text-[1.35rem] leading-tight font-bold tracking-wide text-bone sm:text-3xl">{w.name}</h2>
         <p className="mt-1 text-xs text-mist">{tags.join(' · ')}</p>
         <p className="mt-2 flex flex-wrap items-baseline gap-x-3 gap-y-1 text-sm">
           <span className="font-semibold text-octarine-soft tabular-nums">
@@ -99,6 +115,30 @@ function WeaponSummary({ c }: { c: Companion }) {
         </span>
       )}
     </div>
+  );
+}
+
+function SetupLine({ c, onOpen }: { c: Companion; onOpen: () => void }) {
+  const w = c.weapon;
+  const forced = forcedDisadvantages(c.config, w, c.situation).length > 0;
+  const badge = turnBadge(c);
+  return (
+    <button
+      type="button"
+      onClick={onOpen}
+      aria-label="Show weapon and roll options"
+      className="flex min-h-10 w-full items-center gap-2.5 rounded-xl border border-white/6 bg-abyss/40 px-3 text-left text-sm"
+    >
+      <span className="truncate font-display font-semibold text-bone">{w.shortName ?? w.name}</span>
+      <span className="shrink-0 font-semibold text-octarine-soft tabular-nums">{formatBonus(sumModifiers(attackModifiers(c.config, w)))}</span>
+      <span className="ml-auto shrink-0 text-xs text-mist">
+        <span className={cx('capitalize', forced ? 'text-ember' : c.options.rollMode !== 'normal' && 'text-octarine-soft')}>
+          {forced && c.options.rollMode === 'normal' ? 'disadvantage' : c.options.rollMode}
+        </span>
+        {badge && ` · ${badge}`}
+      </span>
+      <ChevronDown className="size-4 shrink-0 text-mist" />
+    </button>
   );
 }
 
@@ -237,7 +277,7 @@ function BigNumber({ value, label, tone = 'violet', id }: { value: string | numb
     <div key={id} className="animate-rise text-center">
       <div
         className={cx(
-          'font-display text-[5.5rem] leading-none font-bold tabular-nums sm:text-[7rem]',
+          'font-display text-[4.5rem] leading-none font-bold tabular-nums sm:text-[7rem]',
           tone === 'violet' && 'text-bone text-glow',
           tone === 'crit' && 'text-delerium [text-shadow:0_0_36px_rgb(169_245_182/0.6)]',
           tone === 'muted' && 'text-mist/80',
@@ -245,7 +285,7 @@ function BigNumber({ value, label, tone = 'violet', id }: { value: string | numb
       >
         {value}
       </div>
-      <div className={cx('label-caps mt-2 text-sm', tone === 'crit' ? 'text-delerium' : 'text-octarine-soft')}>{label}</div>
+      <div className={cx('label-caps mt-1.5 text-sm sm:mt-2', tone === 'crit' ? 'text-delerium' : 'text-octarine-soft')}>{label}</div>
     </div>
   );
 }
@@ -292,7 +332,7 @@ function ReadyStage({ c }: { c: Companion }) {
 
 function RolledStage({ c, a }: { c: Companion; a: AttackRecord }) {
   return (
-    <div className="space-y-5">
+    <div className="space-y-4 sm:space-y-5">
       <div>
         <BigNumber id={`${a.id}-${a.total}`} value={a.total} label="to hit" />
         <D20Calc a={a} />
@@ -329,7 +369,7 @@ function HitStage({ c, a }: { c: Companion; a: AttackRecord }) {
   const [maneuver, setManeuver] = useState<'none' | 'trip' | 'menacing'>('none');
   const dmgManeuvers = (['trip', 'menacing'] as const).filter((m) => c.config.superiority.maneuvers.includes(m));
   return (
-    <div className="space-y-5">
+    <div className="space-y-4 sm:space-y-5">
       <div className="text-center">
         {a.critical ? (
           <p className="animate-rise font-display text-4xl font-bold tracking-[0.12em] text-delerium uppercase [text-shadow:0_0_30px_rgb(169_245_182/0.55)] sm:text-5xl">
@@ -410,14 +450,16 @@ function DamageStage({ c, a }: { c: Companion; a: AttackRecord }) {
   const canTriggerHew = hewApplies(c.config, getWeapon(c.config, a.weaponId));
   const showHew = canTriggerHew && (a.critical || reducedToZero);
   return (
-    <div className="space-y-5">
+    <div className="space-y-3 sm:space-y-5">
       {a.critical && <p className="label-caps text-center text-delerium">Critical Hit</p>}
-      <BigNumber id={a.id} value={damage.total} label="damage" tone={a.critical ? 'crit' : 'violet'} />
-      <DamageTypeChips damage={damage} large />
+      <div className="space-y-4 max-sm:flex max-sm:items-center max-sm:justify-center max-sm:gap-6 max-sm:space-y-0">
+        <BigNumber id={a.id} value={damage.total} label="damage" tone={a.critical ? 'crit' : 'violet'} />
+        <DamageTypeChips damage={damage} large stacked />
+      </div>
       {a.maneuver && a.maneuver !== 'precision' && (
         <p className="text-center text-xs text-octarine-soft">{MANEUVER_NAMES[a.maneuver]}</p>
       )}
-      <EffectList effects={a.effects} />
+      {/* Follow-up actions before the effect text, so they stay in view on a short phone screen. */}
       {canTriggerHew && !a.critical && (
         <div className="flex justify-center">
           <Toggle checked={reducedToZero} onChange={setReducedToZero}>
@@ -428,17 +470,18 @@ function DamageStage({ c, a }: { c: Companion; a: AttackRecord }) {
       {(c.canCleave || showHew) && (
         <div className="grid gap-2 sm:grid-cols-2">
           {c.canCleave && (
-            <Button variant="magic" size="lg" onClick={c.cleave}>
+            <Button variant="magic" size="lg" className="max-sm:min-h-12" onClick={c.cleave}>
               <Swords className="size-5" /> Cleave — attack 2nd target
             </Button>
           )}
           {showHew && (
-            <Button variant="magic" size="lg" onClick={c.hew} disabled={!c.hasActionFor('bonus')}>
+            <Button variant="magic" size="lg" className="max-sm:min-h-12" onClick={c.hew} disabled={!c.hasActionFor('bonus')}>
               <Skull className="size-5" /> {c.hasActionFor('bonus') ? 'Hew — bonus attack' : 'Hew — bonus action used'}
             </Button>
           )}
         </div>
       )}
+      <EffectList effects={a.effects} />
       <Details summary={`${a.total} to hit · ${attackCalc(a)}`}>
         <DamageDetails damage={damage} />
       </Details>
@@ -449,7 +492,7 @@ function DamageStage({ c, a }: { c: Companion; a: AttackRecord }) {
 function MissStage({ c, a }: { c: Companion; a: AttackRecord }) {
   const graze = a.damage;
   return (
-    <div className="space-y-5">
+    <div className="space-y-4 sm:space-y-5">
       <div className="text-center">
         <p className="animate-rise font-display text-4xl font-bold tracking-[0.12em] text-mist uppercase sm:text-5xl">Miss</p>
         <D20Calc a={a} prefix={a.natural === 1 && !a.natural1Ignored ? 'Natural 1 · ' : `${a.total} to hit · `} />
@@ -490,7 +533,7 @@ function Details({ summary, children }: { summary: string; children: React.React
   );
 }
 
-function PrimaryActions({ c }: { c: Companion }) {
+export function PrimaryActions({ c }: { c: Companion }) {
   const { phase } = c;
   if (phase === 'rolled' || phase === 'hit') return null;
   const next = phase !== 'ready';

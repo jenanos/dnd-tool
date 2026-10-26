@@ -3,19 +3,20 @@ import type { DamageResult, Effect } from '../rules/types';
 import { damageLine, flatBreakdown, typeName } from './format';
 import { cx, DAMAGE_BORDERS, DAMAGE_COLORS } from './ui';
 
-export function DamageTypeChips({ damage, large = false }: { damage: DamageResult; large?: boolean }) {
+/** `stacked`: one chip per line on a phone, to sit beside the big total. */
+export function DamageTypeChips({ damage, large = false, stacked = false }: { damage: DamageResult; large?: boolean; stacked?: boolean }) {
   return (
-    <div className="flex flex-wrap justify-center gap-2">
+    <div className={cx('flex flex-wrap justify-center gap-2', stacked && 'max-sm:flex-col max-sm:items-stretch')}>
       {damage.byType.map(({ type, amount }) => (
         <div
           key={type}
           className={cx(
             'flex items-baseline gap-2 rounded-xl border px-4 py-2',
             DAMAGE_BORDERS[type] ?? 'border-white/10 bg-white/[0.04]',
-            large && 'px-5 py-2.5',
+            large && 'px-5 py-2 sm:py-2.5',
           )}
         >
-          <span className={cx('font-display font-bold tabular-nums', large ? 'text-3xl' : 'text-xl', DAMAGE_COLORS[type])}>
+          <span className={cx('font-display font-bold tabular-nums', large ? 'text-[1.75rem] sm:text-3xl' : 'text-xl', DAMAGE_COLORS[type])}>
             {amount}
           </span>
           <span className={cx('label-caps', DAMAGE_COLORS[type] ?? 'text-mist', 'opacity-80')}>{typeName(type)}</span>
@@ -65,7 +66,7 @@ export function EffectList({ effects }: { effects: Effect[] }) {
       {effects.map((e) => {
         const { className, Icon } = EFFECT_STYLE[e.tone];
         return (
-          <li key={e.text} className={cx('flex items-start gap-2.5 rounded-xl border px-3.5 py-2.5 text-left text-sm', className)}>
+          <li key={e.text} className={cx('flex items-start gap-2.5 rounded-xl border px-3.5 py-2 text-left text-[0.8125rem] sm:py-2.5 sm:text-sm', className)}>
             <Icon className="mt-0.5 size-4 shrink-0" />
             <span>{e.text}</span>
           </li>

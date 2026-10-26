@@ -12,6 +12,9 @@ npm test          # rules engine tests (Vitest)
 npm run build     # static site in dist/ — host anywhere (relative paths, works from a sub-folder)
 ```
 
+Every push to `master` runs the tests, builds and publishes to GitHub Pages
+(`.github/workflows/pages.yml`): https://jenanos.github.io/dnd-tool/
+
 The production build registers a small service worker and a web manifest, so on a phone you can
 "Add to Home Screen" and it works offline.
 
@@ -25,6 +28,7 @@ The production build registers a small service worker and a web manifest, so on 
 | DM says hit | Optionally choose **Trip** or **Menacing**, then **Roll Damage**. The total is shown with a Slashing / Cold / Piercing breakdown and any save DCs. |
 | Next | **Next Attack** rolls again while the turn has attacks left. After that the big button becomes **New Turn**, with **Action Surge** offered if you have a use. **Riposte** sits next to it as long as your reaction is unused. |
 
+- **On a phone** (narrower than 1024 px) the app is one screen with tabs at the bottom: **Attack**, **Turn** (the full turn summary, Action Surge and Override), **Resources** (superiority dice, rest, GWF rules) and **Log**. The main button stays pinned above the tabs, with a one-line turn total that opens the Turn tab. Once an attack is under way the weapon and roll options fold into one line; tap it to change them before the next attack.
 - **Dice details**: expand the row under the damage to see every die (`1→3` means Great Weapon Fighting changed a 1 into a 3).
 - **Corrections**: "Actually a miss / hit", "Mark as critical hit" for non-20 rolls (e.g. a paralysed target), the **±** on superiority dice and **Undo** (which also restores spent dice and turn resources).
 - **Attack type & Tactical Master** (collapsed under the roll-mode buttons): mark a Bonus-action or Reaction attack (no Great Weapon Master bonus), or swap the weapon's mastery for Push / Sap / Slow for one attack. Both reset to the defaults after each roll.

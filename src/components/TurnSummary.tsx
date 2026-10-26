@@ -1,3 +1,4 @@
+import { ChevronRight } from 'lucide-react';
 import { phaseOf } from '../rules/combat';
 import type { AttackRecord } from '../rules/types';
 import type { Companion } from '../state/useCompanion';
@@ -34,11 +35,21 @@ function result(a: AttackRecord) {
   }
 }
 
+// A single attack is already on screen in full; the summary earns its space from the second one.
+const worthShowing = (c: Companion) => c.turnSummary.attacks.length > 1 || (c.turnSummary.attacks.length === 1 && c.phase === 'ready');
+
 /** Running total for the DM: every to-hit this turn plus one combined damage figure by type. */
-export function TurnSummary({ c }: { c: Companion }) {
+export function TurnSummary({ c, always = false }: { c: Companion; always?: boolean }) {
   const t = c.turnSummary;
-  // A single attack is already on screen in full; the summary earns its space from the second one.
-  if (t.attacks.length === 0 || (t.attacks.length === 1 && c.phase !== 'ready')) return null;
+  if (always && t.attacks.length === 0) {
+    return (
+      <section aria-label="This turn" className="rounded-xl border border-octarine/25 bg-abyss/50 px-4 py-3">
+        <h3 className="label-caps text-octarine-soft">This turn</h3>
+        <p className="py-3 text-center text-sm text-mist">No attacks this turn yet.</p>
+      </section>
+    );
+  }
+  if (!always && !worthShowing(c)) return null;
   return (
     <section aria-label="This turn" className="rounded-xl border border-octarine/25 bg-abyss/50 px-4 py-3">
       <div className="flex items-baseline justify-between gap-3">
@@ -72,5 +83,32 @@ export function TurnSummary({ c }: { c: Companion }) {
         </p>
       )}
     </section>
+  );
+}
+
+/** One-line version of the turn summary for the phone action bar; opens the full one. */
+export function TurnStrip({ c, onOpen }: { c: Companion; onOpen: () => void }) {
+  const t = c.turnSummary;
+  if (!worthShowing(c)) return null;
+  return (
+    <button
+      type="button"
+      onClick={onOpen}
+      aria-label={`This turn: ${t.attacks.length} attacks, ${t.total} damage. Show details`}
+      className="flex min-h-11 w-full items-center gap-3 rounded-xl border border-octarine/25 bg-abyss/60 px-3.5 text-left hover:bg-abyss/80"
+    >
+      <span className="label-caps shrink-0 text-octarine-soft">This turn</span>
+      <span className="shrink-0 text-xs text-mist tabular-nums">×{t.attacks.length}</span>
+      <span className="min-w-0 flex-1 truncate text-right text-xs">
+        {t.byType.map(({ type, amount }, i) => (
+          <span key={type} className={DAMAGE_COLORS[type] ?? 'text-bone'}>
+            {i > 0 && <span className="text-mist"> · </span>}
+            <b className="tabular-nums">{amount}</b> {typeName(type)}
+          </span>
+        ))}
+      </span>
+      <span className="shrink-0 font-display text-xl font-bold text-bone tabular-nums">{t.total}</span>
+      <ChevronRight className="size-4 shrink-0 text-mist" />
+    </button>
   );
 }
